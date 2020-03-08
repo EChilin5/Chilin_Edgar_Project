@@ -104,7 +104,7 @@ public class Project_2 {
                     text += "\n";
                 }
                 complete = text;
-                System.out.println("done printing text");
+                System.out.println("waking up certain threads");
 
                 lock1.notifyAll();
             }
@@ -127,6 +127,7 @@ public class Project_2 {
                 lock2.notifyAll();
             }
         }
+
         private void Awake3() {
             synchronized (lock3) {
                 lock3.notifyAll();
@@ -135,16 +136,19 @@ public class Project_2 {
 
         public void compress() throws InterruptedException {
             synchronized (lock1) {
+                lock1.wait();
                 buildTable(complete);
                 int[] te = type1;
-                Node root = HuffmanTree(te);
-                rootShare = root;
+                rootShare = HuffmanTree(te);
                 Awake();
+                System.out.println("asleep compress");
                 lock1.wait();
-                /// add notify than wait
-                final HuffmanEncoder data = new HuffmanEncoder(encodeText(complete, find), root);
-                code = data;
-                System.out.println("done with compress");
+                code = new HuffmanEncoder(encodeText(complete, find), rootShare);
+                byte[] str = code.getEncodeText().getBytes();
+                System.out.println(str);
+
+                String newEntry = new String(str);
+                System.out.println(newEntry);
                 Awake3();
 
             }
@@ -202,15 +206,18 @@ public class Project_2 {
         private void Search() throws InterruptedException {
             synchronized (lock2) {
                 lock2.wait();
+                //  while (true) {
                 System.out.println("done searching");
 
                 find = new Hashtable<>();
                 SearchTree(rootShare, "", find);
                 Awake();
+                //    lock2.wait();
+                // }
             }
         }
 
-        private static void SearchTree(Node root, String entry, Hashtable<Character, String> find) {
+        private synchronized void SearchTree(Node root, String entry, Hashtable<Character, String> find) {
             if (!root.isLeaf()) {
                 SearchTree(root.left, entry + '0', find);
                 SearchTree(root.right, entry + '1', find);
@@ -220,62 +227,58 @@ public class Project_2 {
         }
     }
 
-        static class Decode implements Runnable {
+    static class Decode implements Runnable {
 
-            @Override
-            public void run() {
-                try {
-                    System.out.println(decompress(code));
-                } catch (Exception e) {
-
-                }
+        @Override
+        public void run() {
+            try {
+                decompress();
+            } catch (Exception e) {
+System.out.println("hello "+e.getMessage());
             }
+        }
 
 
-            public static String decompress(final HuffmanEncoder text) throws InterruptedException {
-                synchronized (lock3) {
-                    System.out.println("rej");
-                    lock3.wait();
-                    System.out.println("Awake 3 ");
-                    StringBuilder result = new StringBuilder();
-                    System.out.println(code.getEncodeText().length());
-
-                    Node cuerrent = code.getRoot();
-                    int i = 0;
-                    System.out.println(code.getEncodeText().length() +" "+ 9);
-
-                    while (i < 10) {
-                        System.out.println("Awake 3 ");
-
-                        while (!cuerrent.isLeaf()) {
-                            System.out.println("Awake 3 ");
-
+        public static void decompress() throws InterruptedException {
+            synchronized (lock3) {
+                System.out.println("rej");
+                lock3.wait();
+                System.out.println("awake decompress");
+                StringBuilder result = new StringBuilder();
+                Node current = code.getRoot();
+                System.out.println(code.getEncodeText().length());
+                int i = 0;
+                try {
+                    while (i < code.getEncodeText().length()) {
+                        while (!current.isLeaf()) {
                             char bit = code.getEncodeText().charAt(i);
                             if (bit == '1') {
-                                cuerrent = cuerrent.right;
+                                current = current.right;
                             } else if (bit == '0') {
-                                cuerrent = cuerrent.left;
+                                current = current.left;
+
                             }
                             i++;
                         }
-                        result.append(cuerrent.character);
-                        cuerrent = code.getRoot();
+                        result.append(current.character);
+                        current = code.getRoot();
                     }
-                    output = result.toString();
-                 return output;
+                    System.out.println(result.toString());
+                }catch (Exception e){
+                    System.out.println(e.getMessage());
                 }
             }
 
         }
-
+    }
 
     public static void main(String[] args) {
         int coreCount = Runtime.getRuntime().availableProcessors(); // count of cores computer has gets
         ExecutorService service = Executors.newFixedThreadPool(coreCount);
 
         service.execute(new SearchTable());
-        service.execute(new Compress());
-        service.execute(new Decode());
+           service.execute(new Compress());
+       // service.execute(new Decode());
         service.execute(new ReadFile());
         //service.execute(new Reverse(storage, reverseCopy));
         //service.execute(new Print(reverseCopy));
